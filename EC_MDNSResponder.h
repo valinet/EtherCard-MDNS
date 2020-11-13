@@ -43,13 +43,13 @@
   #include <WProgram.h> // Arduino 0022
 #endif
 
-#include "EtherCard.h"
+#include "../EtherCard/src/EtherCard.h"
 
 class EC_MDNSResponder {
 	public:
 		static bool begin(const char* domain, EtherCard& ether, uint32_t ttlSeconds = 3600);
 		// Callback
-		static void onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], const char *data, uint16_t len);
+		static void onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], uint16_t src_port, const char *data, uint16_t len);
 
 	private:
 	

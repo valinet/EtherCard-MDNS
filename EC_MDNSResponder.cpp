@@ -34,7 +34,7 @@
  *   THE SOFTWARE.
  */
 
-#include <EC_MDNSResponder.h>
+#include "EC_MDNSResponder.h"
 
 #define MDNS_ADDR {224, 0, 0, 251}
 #define MDNS_PORT 5353
@@ -161,8 +161,7 @@ bool EC_MDNSResponder::begin(const char* domain, EtherCard& ether, uint32_t ttlS
   return true;
 }
 
-void EC_MDNSResponder::onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], const char *data, uint16_t len) {
-
+void EC_MDNSResponder::onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], uint16_t src_port, const char *data, uint16_t len) {
 	// Compare incoming data to expected data from current state
 	for(uint16_t i = 0; i < len; i++) {
 		uint8_t ch = data[i];
