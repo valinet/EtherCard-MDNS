@@ -65,10 +65,7 @@ class EC_MDNSResponder {
 		static int _currentLen;
 		static int _index;
 		static uint8_t _FQDNcount;
-
-		// Response data
-		static char* _response;
-		static int _responseLen;
+		static uint32_t _ttlSeconds;
 
 		static void changeState(uint8_t* state);
 		static void sendResponse();
