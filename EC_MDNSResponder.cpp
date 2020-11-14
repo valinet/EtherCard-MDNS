@@ -220,5 +220,13 @@ void EC_MDNSResponder::changeState(uint8_t* state) {
 }
 
 void EC_MDNSResponder::sendResponse() {
-	etherCard.makeUdpReply(_response, _responseLen, MDNS_PORT);
+	uint8_t dip[] = { 224, 0, 0, 251 };
+	etherCard.sendUdp(
+		_response,
+		_responseLen,
+		MDNS_PORT,
+		dip,
+		MDNS_PORT
+	);
+	//etherCard.makeUdpReply(_response, _responseLen, MDNS_PORT);
 }
