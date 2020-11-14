@@ -220,7 +220,7 @@ void EC_MDNSResponder::changeState(uint8_t* state) {
 }
 
 void EC_MDNSResponder::sendResponse() {
-	uint8_t dip[] = { 224, 0, 0, 251 };
+	uint8_t dip[] = MDNS_ADDR;
 	etherCard.sendUdp(
 		_response,
 		_responseLen,
