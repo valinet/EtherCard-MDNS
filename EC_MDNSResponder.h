@@ -54,13 +54,20 @@ class EC_MDNSResponder {
 			const char* szInstance,
 			const char* szService,
 			uint16_t port,
-			uint32_t ttlSeconds = 3600
+			uint32_t ttlSeconds = 3600,
+			const char* txtData = NULL,
+			const char* txtData_P = NULL,
+			uint8_t txtDataLength = 0
 		);
+		
+		static const char* _txtData;
+		static const char* _txtDataP;
+		static uint8_t _txtDataLength;
+
+	private:
 		// Callback
 		static void onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], uint16_t src_port, const char *data, uint16_t len);
 
-	private:
-	
 		static EtherCard etherCard;
 	
 		// Expected query values

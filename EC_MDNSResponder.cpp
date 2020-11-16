@@ -41,6 +41,7 @@
 #define TYPE_TXT 16
 #define TYPE_SRV 33
 #define TYPE_SOA 6
+#define TYPE_HTTPS 65
 
 #define RESPONSE_DOMAIN_LOCAL TYPE_A
 #define RESPONSE_SERVICES_QUERY 120
@@ -71,7 +72,10 @@ int EC_MDNSResponder::_index = 0;
 uint8_t EC_MDNSResponder::_FQDNcount = 0;
 uint32_t EC_MDNSResponder::_ttlSeconds = 0;
 uint16_t EC_MDNSResponder::_port = 80;
-
+const char* EC_MDNSResponder::_txtData = NULL;
+const char* EC_MDNSResponder::_txtDataP = NULL;
+uint8_t EC_MDNSResponder::_txtDataLength = 0;
+		
 const uint8_t dip[] = MDNS_ADDR;
 
 const char service_type_enumeration_P[] PROGMEM = {
@@ -120,12 +124,19 @@ uint8_t EC_MDNSResponder::begin(
 	const char* szInstance,
 	const char* szService,
 	uint16_t port,
-	uint32_t ttlSeconds
+	uint32_t ttlSeconds,
+	const char* txtData,
+	const char* txtData_P,
+	uint8_t txtDataLength
 )
 {
 	_port = port;
 	_ttlSeconds = ttlSeconds;
 	etherCard = ether;
+	_txtData = txtData;
+	_txtDataP = txtData_P;
+	_txtDataLength = txtDataLength;
+	
 	uint8_t n = 0;
 	
 	// Construct names
@@ -267,6 +278,14 @@ void EC_MDNSResponder::onUdpReceive(
 	{
 		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
 	}
+	else if (type == TYPE_AAAA && !strcmp(name, (char*)_queryFQDN))
+	{
+		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
+	}
+	else if (type == TYPE_HTTPS && !strcmp(name, (char*)_queryFQDN))
+	{
+		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
+	}
 	else if (type == TYPE_PTR && !strcmp_P(name, service_type_enumeration_P))
 	{
 		sendResponse(RESPONSE_SERVICES_QUERY, id0, id1);
@@ -377,7 +396,8 @@ void EC_MDNSResponder::sendResponse(
 			_queryFQDNLen - 7 +
 			_querySNLen +
 			IP_OFFSET +
-			_queryFQDNLen - 1;
+			_txtDataLength;
+			//_queryFQDNLen - 1;
 	}
 	
 	// Prepare library
@@ -566,15 +586,24 @@ void EC_MDNSResponder::sendResponse(
 		else if (type == RESPONSE_SERVICE_TXT)
 		{
 			// Change length
-			*(records + 9) = (char)_queryFQDNLen - 1;
+			*(records + 9) = _txtDataLength;
 			
-			uint8_t dot = _queryFQDN[0];
-			memcpy(
-				records + IP_OFFSET,
-				_queryFQDN + 1,
-				_queryFQDNLen - 1
-			);
-			records[dot] = '.';
+			if (_txtData)
+			{
+				memcpy(
+					records + IP_OFFSET,
+					_txtData,
+					_txtDataLength
+				);
+			}
+			else if (_txtDataP)
+			{
+				memcpy_P(
+					records + IP_OFFSET,
+					_txtDataP,
+					_txtDataLength
+				);
+			}
 		}
 	}
 	
