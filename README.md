@@ -3,12 +3,14 @@ EtherCard-MDNS
 
 EtherCard-MDNS is a library that provides mDNS and DNS-SD capabilities for the EtherCard library that enables the usage of the ENC28J60 module on Arduino.
 
-This is a fork that enhances the initial work done on this subject, providing the following features:
+This library provides the following features:
 
 * Support for resolving .local address queries
 * Support for advertising a DNS-SD service
 * Support for advertising a DNS-SD instance.
 * Support for advertising presence when all DNS-SD devices are queried for presence.
+
+This is the currrent and enhanced version of the original [EtherCard-MDNS](https://github.com/itavero/EtherCard-MDNS) library.
 
 This library uses code from the [CC3000 Multicast DNS](https://github.com/adafruit/CC3000_MDNS) library, originally created by Tony DiCola.
 

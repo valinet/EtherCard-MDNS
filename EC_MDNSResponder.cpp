@@ -1,18 +1,17 @@
 /*
- * ENC38J60 Multicast DNS
+ * EtherCard-MDNS
  * 
- * Copyright (c) 2013, Arno Moonen <info@arnom.nl>
+ * Copyright (c) 2013 Arno Moonen <info@arnom.nl>
  * Copyright (c) 2013 Tony DiCola (tony@tonydicola.com)
+ * Copyright (c) 2020 Valentin-Gabriel Radu <valentingabrielradu@gmail.com>
  *
  * This code is based on the CC3000 Multicast DNS library,
  * created by Tony DiCola <tony@tonydicola.com>.
  *
- * This is a simple implementation of multicast DNS query support for an Arduino
- * and ENC28J60 ethernet module. Only support for resolving address queries is
- * currently implemented.
+ * This code is based on the original EtherCard-MDNS library,
+ * created by Arno Moonen <arno@moonen.xyz>.
  *
- * Requirements:
- * - EtherCard (with UDP enhancements): https://github.com/itavero/ethercard/tree/enhancements
+ * Project details: https://github.com/valinet/EtherCard-MDNS
  *
  * License (MIT license):
  *   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,16 +33,20 @@
  *   THE SOFTWARE.
  */
 //#define MDNS_DEBUG
+//#define SEND_SOA_ON_AAAA_ERROR
+//#define SEND_NSEC_WITH_A_RECORD
 #define TYPE_A 1
+#define TYPE_AAAA 28
 #define TYPE_PTR 12
 #define TYPE_TXT 16
 #define TYPE_SRV 33
+#define TYPE_SOA 6
 
-#define RESPONSE_DOMAIN_LOCAL 0
-#define RESPONSE_SERVICES_QUERY 1
-#define RESPONSE_SERVICE_INSTANCE 2
-#define RESPONSE_SERVICE_SRV 3
-#define RESPONSE_SERVICE_TXT 4
+#define RESPONSE_DOMAIN_LOCAL TYPE_A
+#define RESPONSE_SERVICES_QUERY 120
+#define RESPONSE_SERVICE_INSTANCE 121
+#define RESPONSE_SERVICE_SRV TYPE_SRV
+#define RESPONSE_SERVICE_TXT TYPE_TXT
 
 #include "EC_MDNSResponder.h"
 
@@ -55,6 +58,7 @@
 #define NSEC_RECORD_SIZE 20
 #define TTL_OFFSET 4
 #define IP_OFFSET 10
+
 
 uint8_t EC_MDNSResponder::_queryFQDN[INSTANCE_LENGTH];
 int EC_MDNSResponder::_queryFQDNLen = 0;
@@ -68,7 +72,9 @@ uint8_t EC_MDNSResponder::_FQDNcount = 0;
 uint32_t EC_MDNSResponder::_ttlSeconds = 0;
 uint16_t EC_MDNSResponder::_port = 80;
 
-char service_type_enumeration[] = {
+const uint8_t dip[] = MDNS_ADDR;
+
+const char service_type_enumeration_P[] PROGMEM = {
 	9, '_', 's', 'e', 'r', 'v', 'i', 'c', 'e', 's',
 	7, '_', 'd', 'n', 's', '-', 's', 'd',
 	4, '_', 'u', 'd', 'p',
@@ -76,28 +82,38 @@ char service_type_enumeration[] = {
 	0
 };
 
-uint8_t EC_MDNSResponder::_queryHeader[] = { 
-  0x00, 0x00, // ID = 0
-  0x00, 0x00, // Flags = query
-  0x00, 0x00, // Question count = ignored
-  0x00, 0x00, // Answer count = ignored
-  0x00, 0x00, // Name server records = ignored
-  0x00, 0x00  // Additional records = ignored
+#ifdef SEND_SOA_ON_AAAA_ERROR
+const uint8_t soaAAAA[] PROGMEM = 
+{
+	0xc0, 0x0c, 				// pointer to previous name
+	0x00, 0x06, 				// type = SOA
+	0x00, 0x01, 				// class = Internet
+	0x00, 0xff, 0xff, 0xff, 	// TTL
+	0x00, 0x18, 				// data length
+	0xc0, 0x0c, 				// mname pointer
+	0xc0, 0x0c, 				// rname pointer
+	0x00, 0x00, 0x00, 0x01, 	// serial
+	0x00, 0xff, 0xff, 0xff, 	// refresh
+	0x00, 0x00, 0x00, 0x00, 	// retry
+	0x00, 0xff, 0xff, 0xff, 	// expire
+	0x00, 0xff, 0xff, 0xff  	// minimum
 };
+#endif
 
-// Generate negative response for IPV6 address (CC3000 doesn't support IPV6)
+#ifdef SEND_NSEC_WITH_A_RECORD
 const uint8_t nsecRecord[] PROGMEM = 
 {  
-	0xC0, 0x0C,                // Name offset
-	0x00, 0x2F,                // Type = 47, NSEC (overloaded by MDNS)
-	0x80, 0x01,                // Class = Internet, with cache flush bit
-	0x00, 0x00, 0x00, 0x00,    // TTL in seconds, to be filled in later
-	0x00, 0x08,                // Length of record
-	0xC0, 0x0C,                // Next domain = offset to FQDN
-	0x00,                      // Block number = 0
-	0x04,                      // Length of bitmap = 4 bytes
-	0x40, 0x00, 0x00, 0x00     // Bitmap value = Only first bit (A record/IPV4) is set
+	0xC0, 0x0C,                	// Name offset
+	0x00, 0x2F,                	// Type = 47, NSEC (overloaded by MDNS)
+	0x80, 0x01,                	// Class = Internet, with cache flush bit
+	0x00, 0x00, 0x00, 0x00,    	// TTL in seconds, to be filled in later
+	0x00, 0x08,                	// Length of record
+	0xC0, 0x0C,                	// Next domain = offset to FQDN
+	0x00,                      	// Block number = 0
+	0x04,                      	// Length of bitmap = 4 bytes
+	0x40, 0x00, 0x00, 0x00     	// Bitmap value = Only first bit (A record/IPV4) is set
 };
+#endif
 
 uint8_t EC_MDNSResponder::begin(
 	EtherCard& ether,
@@ -200,9 +216,6 @@ uint8_t EC_MDNSResponder::begin(
 		false
 	);
 
-	// Start in a state of parsing the DNS query header.
-	changeState(_queryHeader);
-
 	return 0;
 }
 
@@ -215,124 +228,90 @@ void EC_MDNSResponder::onUdpReceive(
 	uint16_t len
 )
 {
-	uint8_t type;
-	// Compare incoming data to expected data from current state
-	for(uint16_t i = 0; i < len; i++) 
+	// we expect DNS packet to be at least this long
+	if (len < HEADER_SIZE)
 	{
-		uint8_t ch = data[i];
-
-		// If we're processing an FQDN character, make the comparison case insensitive.
-		if (
-			_current == _queryFQDN && 
-			_FQDNcount > 0
-		) 
+		return;
+	}
+	// filter out almost all uninteresting DNS packets
+	if (
+		data[2] & 0b11111011 || // QR == 0, Opcode == 0, TC == 0, RD == 0
+		data[4] || !data[5] || 					   	      // QDCOUNT != 0
+		data[6] || data[7] ||      					      // ANCOUNT == 0
+		data[8] || data[9]         					      // NSCOUNT == 0
+	)
+	{
+		return;
+	}
+	// obtain end of name label
+	uint8_t length = 0;
+	while (length < len - HEADER_SIZE)
+	{
+		if (!data[length + HEADER_SIZE])
 		{
-			ch = tolower(ch);
+			break;
 		}
-
-		// Check character matches expected, or in the case of parsing the question counts
-		// ignore it completely (this is done because MDNS queries on different platforms
-		// sometimes ask for different record types).
+		length++;
+	}
+	length += 2;
+	if (length > len)
+	{
+		return;
+	}
+	uint8_t id0 = data[0];
+	uint8_t id1 = data[1];
+	// compare name label to expected labels
+	const char* name = data + HEADER_SIZE;
+	uint8_t type = (uint8_t)*(name + length);
+	if (type == TYPE_A && !strcmp(name, (char*)_queryFQDN))
+	{
+		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
+	}
+	else if (type == TYPE_PTR && !strcmp_P(name, service_type_enumeration_P))
+	{
+		sendResponse(RESPONSE_SERVICES_QUERY, id0, id1);
+	}
+	else if (type == TYPE_PTR && !strcmp(name, (char*)_querySN))
+	{
+		sendResponse(RESPONSE_SERVICE_INSTANCE, id0, id1);
+	}
+	else if (type == TYPE_SRV || type == TYPE_TXT)
+	{
 		if (
-			ch == _current[_index] ||
-			(_current == _queryHeader && _index >= QDCOUNT_OFFSET)
-		) 
+			!strncmp(name, (char*)_queryFQDN, _queryFQDNLen - 7) &&
+			!strcmp(name + _queryFQDNLen - 7, (char*)_querySN)
+		)
 		{
-			// Update FQDN char count when processing FQDN characters.
-			if (_current == _queryFQDN) 
-			{
-				if (_FQDNcount == 0) 
-				{
-					// Handle the next characters as case insensitive FQDN characters.
-					_FQDNcount = ch;
-				}
-				else 
-				{
-					_FQDNcount--;
-				}
-			}
-			// Update state when the end of the current one has been reached.
-			_index++;
-			if (_index >= _currentLen) 
-			{
-				// Switch to next state
-				if (_current == _queryHeader) 
-				{
-					type = (uint8_t)*(data + i + strlen(data + i + 1) + 3);
-					if (type == TYPE_A)
-					{
-						changeState(_queryFQDN);
-					}
-					else if (type == TYPE_PTR)
-					{
-						char* name = (char*)(data + i + 1);
-						if (!strcmp(name, service_type_enumeration))
-						{
-							sendResponse(RESPONSE_SERVICES_QUERY);
-							changeState(_queryHeader);
-						}
-						else
-						{
-							changeState(_querySN);
-						}
-					}
-					else if (type == TYPE_SRV || type == TYPE_TXT)
-					{
-						char* name = (char*)(data + i + 1);
-						if (
-							!strncmp(name, (char*)_queryFQDN, _queryFQDNLen - 7) &&
-							!strcmp(name + _queryFQDNLen - 7, (char*)_querySN)
-						)
-						{
-							if (type == TYPE_SRV)
-							{
-								sendResponse(RESPONSE_SERVICE_SRV);
-							}
-							else if (type == TYPE_TXT)
-							{
-								sendResponse(RESPONSE_SERVICE_TXT);
-							}
-							changeState(_queryHeader);
-						}
-					}
-				}
-				else if (_current == _queryFQDN) 
-				{
-					//itype = (uint8_t)data[i + 2];
-					sendResponse(RESPONSE_DOMAIN_LOCAL);
-					changeState(_queryHeader);
-				}
-				else if (_current == _querySN)
-				{
-					sendResponse(RESPONSE_SERVICE_INSTANCE);
-				}
-			}
-		}
-		else 
-		{
-		  // Reset to start looking from the start again
-		  changeState(_queryHeader);
+			sendResponse(type, id0, id1);
 		}
 	}
+	#ifdef SEND_SOA_ON_AAAA_ERROR
+	else if (type == TYPE_AAAA && !strcmp(name, (char*)_queryFQDN))
+	{
+		// for requests of IPv6 address, we return back the query
+		// and an additional SOA RR where we try to force the client
+		// to cache the reply for as long as possible to avoid
+		// future unnecessary queries
+		ether.udpPrepare(MDNS_PORT, dip, MDNS_PORT);
+		char* _response = (char*)ether.buffer + UDP_DATA_P;
+		_response[2] |= (1 << 7); // set QR to response
+		_response[9] = 0x1; // 1 authority RR
+		memcpy_P(
+			_response + len,
+			soaAAAA,
+			sizeof(soaAAAA)
+		);
+		ether.udpTransmit(len + sizeof(soaAAAA));
+	}
+	#endif
+	//Serial.println(type);
 }
 
-void EC_MDNSResponder::changeState(uint8_t* state) {
-	_current = state;
-	if (state == _queryFQDN) {
-		_currentLen = _queryFQDNLen;
-	}
-	else if (state == _querySN) {
-		_currentLen = _querySNLen;
-	}
-	else if (state == _queryHeader) {
-		_currentLen = HEADER_SIZE;
-	}
-	_index = 0;
-	_FQDNcount = 0;
-}
-
-void EC_MDNSResponder::sendResponse(uint8_t type) {
-	uint8_t dip[] = MDNS_ADDR;
+void EC_MDNSResponder::sendResponse(
+	uint8_t type,
+	uint8_t id0,
+	uint8_t id1
+) {
 	unsigned int _responseLen = 0;
 	char* records = NULL;
 	uint8_t ttl[4] = { (uint8_t)(_ttlSeconds >> 24), (uint8_t)(_ttlSeconds >> 16), (uint8_t)(_ttlSeconds >> 8), (uint8_t)_ttlSeconds };
@@ -345,8 +324,10 @@ void EC_MDNSResponder::sendResponse(uint8_t type) {
 		_responseLen = 
 			HEADER_SIZE + 
 			_queryFQDNLen + 
-			A_RECORD_SIZE + 
-			NSEC_RECORD_SIZE;
+			A_RECORD_SIZE;
+#ifdef SEND_NSEC_WITH_A_RECORD
+		_responseLen += NSEC_RECORD_SIZE;
+#endif
 	}
 	else if (type == RESPONSE_SERVICES_QUERY)
 	{
@@ -355,7 +336,7 @@ void EC_MDNSResponder::sendResponse(uint8_t type) {
 #endif
 		_responseLen = 
 			HEADER_SIZE + 
-			sizeof(service_type_enumeration) +
+			sizeof(service_type_enumeration_P) +
 			IP_OFFSET +
 			_querySNLen;
 	}
@@ -405,14 +386,18 @@ void EC_MDNSResponder::sendResponse(uint8_t type) {
 
 	// Copy header in response
 	memset(_response, 0, HEADER_SIZE);
+	_response[0] = id0; // keep ID the same as request
+	_response[1] = id1;
 	_response[2] = 0x84; // authoritative answer
 	_response[7] = 0x1; // 1 answer
 	
 	
 	if (type == RESPONSE_DOMAIN_LOCAL)
-	{ 
-		// Set header additional records to 1.
-		_response[11] = 1;
+	{
+#ifdef SEND_NSEC_WITH_A_RECORD
+		// Increase header additional records with 1.
+		_response[11]++;
+#endif
 		// Copy owner name
 		memcpy(
 			_response + HEADER_SIZE, 
@@ -422,16 +407,6 @@ void EC_MDNSResponder::sendResponse(uint8_t type) {
 		// Pointer to remaining of record(s)
 		records = _response + HEADER_SIZE + _queryFQDNLen;
 		
-				/*
-		const uint8_t aRecord[] PROGMEM = 
-{ 
-	0x00, 0x01,                // Type = 1, A record/IPV4 address
-	0x80, 0x01,                // Class = Internet, with cache flush bit
-	0x00, 0x00, 0x00, 0x00,    // TTL in seconds, to be filled in later
-	0x00, 0x04,                // Length of record
-	0x00, 0x00, 0x00, 0x00     // IP address, to be filled in later
-};
-*/
 		// Zeroize RR
 		memset(records, 0, IP_OFFSET);
 		
@@ -446,11 +421,13 @@ void EC_MDNSResponder::sendResponse(uint8_t type) {
 		*(records + 9) = 0x04;
 		
 		// Copy NSEC record struct
+#ifdef SEND_NSEC_WITH_A_RECORD
 		memcpy_P(
 			records + A_RECORD_SIZE, 
 			nsecRecord, 
 			NSEC_RECORD_SIZE
 		);
+#endif
 		// Add TTL to records.
 		memcpy(
 			records + TTL_OFFSET, 
@@ -479,12 +456,12 @@ void EC_MDNSResponder::sendResponse(uint8_t type) {
 		// Copy owner name
 		if (type == RESPONSE_SERVICES_QUERY)
 		{
-			memcpy(
+			memcpy_P(
 				_response + HEADER_SIZE, 
-				service_type_enumeration, 
-				sizeof(service_type_enumeration)
+				service_type_enumeration_P, 
+				sizeof(service_type_enumeration_P)
 			);
-			records += sizeof(service_type_enumeration);
+			records += sizeof(service_type_enumeration_P);
 		}
 		else if (type == RESPONSE_SERVICE_INSTANCE)
 		{

@@ -1,18 +1,17 @@
 /*
- * ENC38J60 Multicast DNS
+ * EtherCard-MDNS
  * 
- * Copyright (c) 2013, Arno Moonen <info@arnom.nl>
+ * Copyright (c) 2013 Arno Moonen <info@arnom.nl>
  * Copyright (c) 2013 Tony DiCola (tony@tonydicola.com)
+ * Copyright (c) 2020 Valentin-Gabriel Radu <valentingabrielradu@gmail.com>
  *
  * This code is based on the CC3000 Multicast DNS library,
  * created by Tony DiCola <tony@tonydicola.com>.
  *
- * This is a simple implementation of multicast DNS query support for an Arduino
- * and ENC28J60 ethernet module. Only support for resolving address queries is
- * currently implemented.
+ * This code is based on the original EtherCard-MDNS library,
+ * created by Arno Moonen <arno@moonen.xyz>.
  *
- * Requirements:
- * - EtherCard (with UDP enhancements): https://github.com/itavero/ethercard/tree/enhancements
+ * Project details: https://github.com/valinet/EtherCard-MDNS
  *
  * License (MIT license):
  *   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -80,7 +79,7 @@ class EC_MDNSResponder {
 		static uint16_t _port;
 
 		static void changeState(uint8_t* state);
-		static void sendResponse(uint8_t type);
+		static void sendResponse(uint8_t type, 	uint8_t id0, uint8_t id1);
 };
 
 extern EC_MDNSResponder mdns;
