@@ -45,9 +45,18 @@
 
 #include "../EtherCard/src/EtherCard.h"
 
+#define INSTANCE_LENGTH 20
+#define SERVICE_LENGTH 30
+
 class EC_MDNSResponder {
 	public:
-		static bool begin(const char* domain, EtherCard& ether, uint32_t ttlSeconds = 3600);
+		static uint8_t begin(
+			EtherCard& ether,
+			const char* szInstance,
+			const char* szService,
+			uint16_t port,
+			uint32_t ttlSeconds = 3600
+		);
 		// Callback
 		static void onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], uint16_t src_port, const char *data, uint16_t len);
 
@@ -57,8 +66,10 @@ class EC_MDNSResponder {
 	
 		// Expected query values
 		static uint8_t _queryHeader[];
-		static uint8_t* _queryFQDN;
+		static uint8_t _queryFQDN[INSTANCE_LENGTH];
 		static int _queryFQDNLen;
+		static uint8_t _querySN[SERVICE_LENGTH];
+		static int _querySNLen;
 
 		// Current parsing state
 		static uint8_t* _current;
@@ -66,9 +77,10 @@ class EC_MDNSResponder {
 		static int _index;
 		static uint8_t _FQDNcount;
 		static uint32_t _ttlSeconds;
+		static uint16_t _port;
 
 		static void changeState(uint8_t* state);
-		static void sendResponse();
+		static void sendResponse(uint8_t type);
 };
 
 extern EC_MDNSResponder mdns;

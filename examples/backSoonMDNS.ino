@@ -56,7 +56,7 @@ void setup(){
   ether.printIp("DNS: ", ether.dnsip);
   
   // Register MDNSResponder
-  if(!mdns.begin(MDNS_NAME, ether)) {
+  if(!mdns.begin(ether, MDNS_NAME, "_arduino._tcp", 80, 3600)) {
     Serial.println("Error settings up MDNS responder");
   } else {
     Serial.print("Listening on ");

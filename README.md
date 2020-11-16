@@ -1,33 +1,51 @@
-ENC28J60 Multicast DNS
+EtherCard-MDNS
 ======================
 
-This library uses code from the [CC3000 Multicast DNS](https://github.com/adafruit/CC3000_MDNS)
-library, originally created by Tony DiCola.
+EtherCard-MDNS is a library that provides mDNS and DNS-SD capabilities for the EtherCard library that enables the usage of the ENC28J60 module on Arduino.
 
-This is a simple implementation of multicast DNS query support for an Arduino and ENC28J60
-ethernet module. Only support for resolving address queries is currently implemented.
+This is a fork that enhances the initial work done on this subject, providing the following features:
+
+* Support for resolving .local address queries
+* Support for advertising a DNS-SD service
+* Support for advertising a DNS-SD instance.
+* Support for advertising presence when all DNS-SD devices are queried for presence.
+
+This library uses code from the [CC3000 Multicast DNS](https://github.com/adafruit/CC3000_MDNS) library, originally created by Tony DiCola.
 
 Usage
 -----
-To use this library, you must use a version of the EtherCard library that includes [my UDP
-enhancements](https://github.com/itavero/ethercard/tree/enhancements). So be sure that add
-that library as well as this one to your Arduino IDE.
+This library requires a slightly patched version of the EtherCard library that has a few UDP enhancements. At the moment, this modifications are not upstreamed, so you can find a forked EtherCard version that implements these at https://github.com/valinet/EtherCard.
 
-After that it's as easy as including both libraries and adding the following code to the
-bottom of your `setup()` method (or at least after you have  acquired an IP address):
-````cpp
-if(!mdns.begin("some-name", ether)) {
-    Serial.println("Error settings up MDNS responder");
+To make use of the library, simply add a call like the following after you obtain an IP address for EtherCard:
+
+```c
+byte rv = mdns.begin(
+    ether, 
+    instance,
+    service,
+    servicePort,
+    ttl
+);
+if (rv) {
+    Serial.print("MDNS initialization failed with error code: ");
+    Serial.println(rv);
 } else {
-	Serial.print("Listening on some-name.local");
+    Serial.println("MDNS initialization succeded.");
 }
-````
-Note: the second argument (`ether`) refers to an instance of EtherCard.
-Optionally, you can supply the TTL as a third argument to `mdns.begin`.
+```
 
-Be sure to also have a look at the example I've included.
+The parameters for the begin function represent the following:
+
+* ether - pointer to the EtherCard instance
+* instance - name of the instance for this service; *instance*.local will resolve to the IP address of EtherCard if a resolver capable of mDNS is available on the client OS
+* service - name of service advertised via DNS-SD; this has to be a pair of DNS labels, each beginning with an underscore; the second label usually denotes the protocol used by the application, so set it to either *\_tcp*, either *\_udp*; an example valid name is *\_workstation.\_tcp*.
+* servicePort - this has to be set to the port on which the application is running
+* ttl - this is optional and allows specifying a time to live for the advertisment packets, basically how long can they exist in the client's cache
+
+The instance and service names are stored in variables whose dimensions are allocated very conservatively in order to spare dynamic memory. If you want to use longer names, make sure to change the defines responsible for these in the source code.
+
+There is an example provided that can help you get started. For more comprehensive usage, check my homepi project: https://github.com/valinet/homepi-plus.
 
 License
 -------
-Just like the original library by Tony DiCola, this library is released under a
-MIT license.
+Just like the original library by Tony DiCola, this library is released under a MIT license.
