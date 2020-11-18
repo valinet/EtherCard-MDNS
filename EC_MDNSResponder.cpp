@@ -274,34 +274,78 @@ void EC_MDNSResponder::onUdpReceive(
 	// compare name label to expected labels
 	const char* name = data + HEADER_SIZE;
 	uint8_t type = (uint8_t)*(name + length);
+	
+	Serial.println(type);
 	if (type == TYPE_A && !strcmp(name, (char*)_queryFQDN))
 	{
-		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
+		sendResponse(
+			RESPONSE_DOMAIN_LOCAL, 
+			id0, 
+			id1, 
+			dest_port, 
+			ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip,
+			src_port
+		);
 	}
 	else if (type == TYPE_AAAA && !strcmp(name, (char*)_queryFQDN))
 	{
-		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
+		sendResponse(
+			RESPONSE_DOMAIN_LOCAL, 
+			id0, 
+			id1, 
+			dest_port, 
+			ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip, 
+			src_port
+		);
 	}
 	else if (type == TYPE_HTTPS && !strcmp(name, (char*)_queryFQDN))
 	{
-		sendResponse(RESPONSE_DOMAIN_LOCAL, id0, id1);
+		sendResponse(
+			RESPONSE_DOMAIN_LOCAL, 
+			id0, 
+			id1, 
+			dest_port, 
+			ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip, 
+			src_port
+		);
 	}
 	else if (type == TYPE_PTR && !strcmp_P(name, service_type_enumeration_P))
 	{
-		sendResponse(RESPONSE_SERVICES_QUERY, id0, id1);
+		sendResponse(
+			RESPONSE_SERVICES_QUERY, 
+			id0, 
+			id1, 
+			dest_port, 
+			ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip, 
+			src_port
+		);
 	}
 	else if (type == TYPE_PTR && !strcmp(name, (char*)_querySN))
 	{
-		sendResponse(RESPONSE_SERVICE_INSTANCE, id0, id1);
+		sendResponse(
+			RESPONSE_SERVICE_INSTANCE, 
+			id0, 
+			id1, 
+			dest_port, 
+			ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip, 
+			src_port
+		);
 	}
 	else if (type == TYPE_SRV || type == TYPE_TXT)
 	{
 		if (
-			!strncmp(name, (char*)_queryFQDN, _queryFQDNLen - 7) &&
+			!strncmp(name, (char*)_queryFQDN, _queryFQDNLen - 7) && // 7 = strlen(.local)
 			!strcmp(name + _queryFQDNLen - 7, (char*)_querySN)
 		)
 		{
-			sendResponse(type, id0, id1);
+			sendResponse(
+				type, 
+				id0, 
+				id1, 
+				dest_port, 
+				ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip, 
+				src_port
+			);
 		}
 	}
 	#ifdef SEND_SOA_ON_AAAA_ERROR
@@ -311,7 +355,11 @@ void EC_MDNSResponder::onUdpReceive(
 		// and an additional SOA RR where we try to force the client
 		// to cache the reply for as long as possible to avoid
 		// future unnecessary queries
-		ether.udpPrepare(MDNS_PORT, dip, MDNS_PORT);
+		ether.udpPrepare(
+			dest_port,
+			ether.compareAddresses(dest_ip, ether.myip) ? src_ip : (uint8_t*)dip,
+			src_port
+		);
 		char* _response = (char*)ether.buffer + UDP_DATA_P;
 		_response[2] |= (1 << 7); // set QR to response
 		_response[9] = 0x1; // 1 authority RR
@@ -329,7 +377,10 @@ void EC_MDNSResponder::onUdpReceive(
 void EC_MDNSResponder::sendResponse(
 	uint8_t type,
 	uint8_t id0,
-	uint8_t id1
+	uint8_t id1,
+	uint16_t dest_port, 
+	uint8_t src_ip[IP_LEN],
+	uint16_t src_port
 ) {
 	unsigned int _responseLen = 0;
 	char* records = NULL;
@@ -401,7 +452,7 @@ void EC_MDNSResponder::sendResponse(
 	}
 	
 	// Prepare library
-	ether.udpPrepare(MDNS_PORT, dip, MDNS_PORT);
+	ether.udpPrepare(dest_port, src_ip, src_port);
 	char* _response = (char*)ether.buffer + UDP_DATA_P;
 
 	// Copy header in response

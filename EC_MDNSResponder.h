@@ -66,7 +66,14 @@ class EC_MDNSResponder {
 
 	private:
 		// Callback
-		static void onUdpReceive(uint8_t dest_ip[4], uint16_t dest_port, uint8_t src_ip[4], uint16_t src_port, const char *data, uint16_t len);
+		static void onUdpReceive(
+			uint8_t dest_ip[IP_LEN], 
+			uint16_t dest_port, 
+			uint8_t src_ip[IP_LEN], 
+			uint16_t src_port, 
+			const char *data, 
+			uint16_t len
+		);
 
 		static EtherCard etherCard;
 	
@@ -86,7 +93,14 @@ class EC_MDNSResponder {
 		static uint16_t _port;
 
 		static void changeState(uint8_t* state);
-		static void sendResponse(uint8_t type, 	uint8_t id0, uint8_t id1);
+		static void sendResponse(
+			uint8_t type, 
+			uint8_t id0, 
+			uint8_t id1, 
+			uint16_t dest_port,
+			uint8_t src_ip[IP_LEN],
+			uint16_t src_port
+		);
 };
 
 extern EC_MDNSResponder mdns;
