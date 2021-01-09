@@ -63,6 +63,8 @@ class EC_MDNSResponder {
 		static const char* _txtData;
 		static const char* _txtDataP;
 		static uint8_t _txtDataLength;
+		
+		static void advertise();
 
 	private:
 		// Callback

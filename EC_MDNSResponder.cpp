@@ -374,6 +374,18 @@ void EC_MDNSResponder::onUdpReceive(
 	//Serial.println(type);
 }
 
+void EC_MDNSResponder::advertise()
+{
+	sendResponse(
+      RESPONSE_DOMAIN_LOCAL,
+      0,
+      0,
+      MDNS_PORT,
+      (uint8_t*)dip,
+      MDNS_PORT
+    );
+}
+
 void EC_MDNSResponder::sendResponse(
 	uint8_t type,
 	uint8_t id0,
